@@ -3,9 +3,25 @@ import json
 import os
 from typing import List
 from dotenv import load_dotenv
-import anthropic
+from openai import AzureOpenAI
+
+load_dotenv() 
 
 PAPER_DIR = "papers"
+LLM_MODEL = "gpt-4o"
+
+#It's tricky to configure our Azure Client due to its url structure
+#https://github.com/openai/openai-python/blob/main/src/openai/lib/azure.py
+client = AzureOpenAI(
+    base_url="https://dev-unified-api.ucsf.edu/general/openai/auth/deployments/gpt-4o-2024-05-13-chat",
+    # Using azure endpoint does not work in our case because the logic appends additional sections on the url
+    #azure_endpoint="https://dev-unified-api.ucsf.edu/general",
+    #azure_deployment="gpt-4o-2024-05-13-chat",
+    api_version="2024-10-21",
+    azure_ad_token=os.getenv("AZURE_OPENAI_API_KEY")
+)
+print(client.auth_headers)
+print(client.base_url)
 
 def search_papers(topic: str, max_results: int = 5) -> List[str]:
     """
@@ -20,7 +36,7 @@ def search_papers(topic: str, max_results: int = 5) -> List[str]:
     """
     
     # Use arxiv to find the papers 
-    client = arxiv.Client()
+    arx_client = arxiv.Client()
 
     # Search for the most relevant articles matching the queried topic
     search = arxiv.Search(
@@ -29,7 +45,7 @@ def search_papers(topic: str, max_results: int = 5) -> List[str]:
         sort_by = arxiv.SortCriterion.Relevance
     )
 
-    papers = client.results(search)
+    papers = arx_client.results(search)
     
     # Create directory for this topic
     path = os.path.join(PAPER_DIR, topic.lower().replace(" ", "_"))
@@ -94,6 +110,8 @@ def extract_info(paper_id: str) -> str:
 
 tools = [
     {
+        "type": "function",
+        "function": {
         "name": "search_papers",
         "description": "Search for papers on arXiv based on a topic and store their information.",
         "input_schema": {
@@ -111,8 +129,10 @@ tools = [
             },
             "required": ["topic"]
         }
-    },
+    }},
     {
+        "type": "function",
+        "function": {
         "name": "extract_info",
         "description": "Search for information about a specific paper across all topic directories.",
         "input_schema": {
@@ -125,6 +145,7 @@ tools = [
             },
             "required": ["paper_id"]
         }
+    }
     }
 ]
 
@@ -153,15 +174,12 @@ def execute_tool(tool_name, tool_args):
     return result
 
 
-load_dotenv() 
-client = anthropic.Anthropic()
-
 def process_query(query):
     
     messages = [{'role': 'user', 'content': query}]
     
-    response = client.messages.create(max_tokens = 2024,
-                                  model = 'claude-3-7-sonnet-20250219', 
+    response = client.chat.completions.create(max_tokens = 2024,
+                                  model = LLM_MODEL, 
                                   tools = tools,
                                   messages = messages)
     
@@ -198,8 +216,8 @@ def process_query(query):
                                       }
                                   ]
                                 })
-                response = client.messages.create(max_tokens = 2024,
-                                  model = 'claude-3-7-sonnet-20250219', 
+                response = client.chat.completions.create(max_tokens = 2024,
+                                  model = LLM_MODEL, 
                                   tools = tools,
                                   messages = messages) 
                 
