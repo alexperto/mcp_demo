@@ -187,7 +187,7 @@ def process_query(query):
     while process_query:
         assistant_content = []
 
-        for content in response.content:
+        for content in response.choices:
             if content.type == 'text':
                 
                 print(content.text)
