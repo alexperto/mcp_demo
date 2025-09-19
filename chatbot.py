@@ -114,7 +114,7 @@ tools = [
         "function": {
         "name": "search_papers",
         "description": "Search for papers on arXiv based on a topic and store their information.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {
                 "topic": {
@@ -135,7 +135,7 @@ tools = [
         "function": {
         "name": "extract_info",
         "description": "Search for information about a specific paper across all topic directories.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {
                 "paper_id": {
@@ -187,43 +187,52 @@ def process_query(query):
     while process_query:
         assistant_content = []
 
-        for content in response.choices:
-            if content.type == 'text':
-                
-                print(content.text)
-                assistant_content.append(content)
-                
-                if len(response.content) == 1:
-                    process_query = False
-            
-            elif content.type == 'tool_use':
-                
-                assistant_content.append(content)
-                messages.append({'role': 'assistant', 'content': assistant_content})
-                
-                tool_id = content.id
-                tool_args = content.input
-                tool_name = content.name
-                print(f"Calling tool {tool_name} with args {tool_args}")
-                
-                result = execute_tool(tool_name, tool_args)
-                messages.append({"role": "user", 
-                                  "content": [
-                                      {
-                                          "type": "tool_result",
-                                          "tool_use_id": tool_id,
-                                          "content": result
-                                      }
-                                  ]
-                                })
-                response = client.chat.completions.create(max_tokens = 2024,
-                                  model = LLM_MODEL, 
-                                  tools = tools,
-                                  messages = messages) 
-                
-                if len(response.content) == 1 and response.content[0].type == "text":
-                    print(response.content[0].text)
-                    process_query = False
+        # Adapted to use OpenAI chat completions response structure
+        for choice in response.choices:
+            message = choice.message
+            if message.content is not None:
+                # Standard text response from the assistant
+                print(message.content)
+                assistant_content.append({"type": "text", "text": message.content})
+                process_query = False
+            elif message.tool_calls:
+                # The assistant is requesting a tool call
+                for tool_call in message.tool_calls:
+                    assistant_content.append({
+                        "type": "tool_call",
+                        "id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "input": tool_call.function.arguments
+                    })
+                    messages.append({'role': 'assistant', 'content': assistant_content})
+
+                    tool_id = tool_call.id
+                    tool_args = json.loads(tool_call.function.arguments)
+                    tool_name = tool_call.function.name
+                    print(f"Calling tool {tool_name} with args {tool_args}")
+
+                    result = execute_tool(tool_name, tool_args)
+                    messages.append({
+                        "role": "tool",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_call_id": tool_id,
+                                "content": result
+                            }
+                        ]
+                    })
+                    response = client.chat.completions.create(
+                        max_tokens=2024,
+                        model=LLM_MODEL,
+                        tools=tools,
+                        messages=messages
+                    )
+
+                    # Check if the next response is a text message and print it
+                    if response.choices and response.choices[0].message.content is not None:
+                        print(response.choices[0].message.content)
+                        process_query = False
 
 def chat_loop():
     print("Type your queries or 'quit' to exit.")
