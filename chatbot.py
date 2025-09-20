@@ -192,20 +192,14 @@ def process_query(query):
             message = choice.message
             if message.content is not None:
                 # Standard text response from the assistant
+                print("Standard Text response")
                 print(message.content)
-                assistant_content.append({"type": "text", "text": message.content})
                 process_query = False
             elif message.tool_calls:
                 # The assistant is requesting a tool call
+                messages.append({'role': 'assistant', 'content': message.content, 'tool_calls': message.tool_calls})
+                
                 for tool_call in message.tool_calls:
-                    assistant_content.append({
-                        "type": "tool_call",
-                        "id": tool_call.id,
-                        "name": tool_call.function.name,
-                        "input": tool_call.function.arguments
-                    })
-                    messages.append({'role': 'assistant', 'content': assistant_content})
-
                     tool_id = tool_call.id
                     tool_args = json.loads(tool_call.function.arguments)
                     tool_name = tool_call.function.name
@@ -214,25 +208,21 @@ def process_query(query):
                     result = execute_tool(tool_name, tool_args)
                     messages.append({
                         "role": "tool",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_call_id": tool_id,
-                                "content": result
-                            }
-                        ]
+                        "content": result,
+                        "tool_call_id": tool_id
                     })
-                    response = client.chat.completions.create(
-                        max_tokens=2024,
-                        model=LLM_MODEL,
-                        tools=tools,
-                        messages=messages
-                    )
+                    
+                response = client.chat.completions.create(
+                    max_tokens=2024,
+                    model=LLM_MODEL,
+                    tools=tools,
+                    messages=messages
+                )
 
-                    # Check if the next response is a text message and print it
-                    if response.choices and response.choices[0].message.content is not None:
-                        print(response.choices[0].message.content)
-                        process_query = False
+                # Check if the next response is a text message and print it
+                if response.choices and response.choices[0].message.content is not None:
+                    print(response.choices[0].message.content)
+                    process_query = False
 
 def chat_loop():
     print("Type your queries or 'quit' to exit.")
