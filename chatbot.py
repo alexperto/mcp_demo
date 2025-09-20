@@ -13,15 +13,12 @@ LLM_MODEL = "gpt-4o"
 #It's tricky to configure our Azure Client due to its url structure
 #https://github.com/openai/openai-python/blob/main/src/openai/lib/azure.py
 client = AzureOpenAI(
-    base_url="https://dev-unified-api.ucsf.edu/general/openai/auth/deployments/gpt-4o-2024-05-13-chat",
-    # Using azure endpoint does not work in our case because the logic appends additional sections on the url
-    #azure_endpoint="https://dev-unified-api.ucsf.edu/general",
-    #azure_deployment="gpt-4o-2024-05-13-chat",
-    api_version="2024-10-21",
+    base_url=os.getenv("AZURE_OPENAI_API_URL"),
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
     azure_ad_token=os.getenv("AZURE_OPENAI_API_KEY")
 )
-print(client.auth_headers)
-print(client.base_url)
+#print(client.auth_headers)
+#print(client.base_url)
 
 def search_papers(topic: str, max_results: int = 5) -> List[str]:
     """
@@ -211,18 +208,17 @@ def process_query(query):
                         "content": result,
                         "tool_call_id": tool_id
                     })
-                    
-                response = client.chat.completions.create(
-                    max_tokens=2024,
-                    model=LLM_MODEL,
-                    tools=tools,
-                    messages=messages
-                )
+                    response = client.chat.completions.create(
+                        max_tokens=2024,
+                        model=LLM_MODEL,
+                        tools=tools,
+                        messages=messages
+                    )
 
-                # Check if the next response is a text message and print it
-                if response.choices and response.choices[0].message.content is not None:
-                    print(response.choices[0].message.content)
-                    process_query = False
+                    # Check if the next response is a text message and print it
+                    if response.choices and response.choices[0].message.content is not None:
+                        print(response.choices[0].message.content)
+                        process_query = False
 
 def chat_loop():
     print("Type your queries or 'quit' to exit.")
