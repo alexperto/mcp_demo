@@ -61,6 +61,7 @@ class MCP_ChatBot:
                         assistant_message['content'] = ""
                     messages.append(assistant_message)
 
+                    # Process all tool calls first
                     for tool_call in message.tool_calls:
                         tool_id = tool_call.id
                         tool_args = json.loads(tool_call.function.arguments)
@@ -78,18 +79,22 @@ class MCP_ChatBot:
                         messages.append({
                             "role": "tool",
                             "content": safe_result,
+                            "name": tool_name,
                             "tool_call_id": tool_id
                         })
-                        response = self.openai.chat.completions.create(max_tokens = 2024,
-                            model = LLM_MODEL, 
-                            tools = self.available_tools,
-                            messages = messages
-                        )
 
-                        # Check if the next response is a text message and print it
-                        if response.choices and response.choices[0].message.content is not None:
-                            print(response.choices[0].message.content)
-                            process_query = False
+                    # Make a single API call after processing all tool calls
+                    print("-------------------------------------------------------")
+                    response = self.openai.chat.completions.create(max_tokens = 2024,
+                        model = LLM_MODEL, 
+                        tools = self.available_tools,
+                        messages = messages
+                    )
+
+                    # Check if the next response is a text message and print it
+                    if response.choices and response.choices[0].message.content is not None:
+                        print(response.choices[0].message.content)
+                        process_query = False
 
     
     
