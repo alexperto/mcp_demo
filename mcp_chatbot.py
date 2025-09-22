@@ -51,8 +51,15 @@ class MCP_ChatBot:
                 elif message.tool_calls:
                     # The assistant is requesting a tool call
                     print("Calling tools...")
-                    print(message.content)
-                    messages.append({'role': 'assistant', 'content': message.content, 'tool_calls': message.tool_calls})
+                    assistant_message = {
+                        'role': 'assistant',
+                        'tool_calls': message.tool_calls
+                    }
+                    if isinstance(message.content, str) or isinstance(message.content, list):
+                        assistant_message['content'] = message.content
+                    else:
+                        assistant_message['content'] = ""
+                    messages.append(assistant_message)
 
                     for tool_call in message.tool_calls:
                         tool_id = tool_call.id
@@ -62,9 +69,15 @@ class MCP_ChatBot:
 
                         result = await self.session.call_tool(tool_name, arguments=tool_args)
 
+                        # Normalize tool result to a string for OpenAI API compatibility
+                        if isinstance(result, (dict, list)):
+                            safe_result = json.dumps(result)
+                        else:
+                            safe_result = str(result)
+
                         messages.append({
                             "role": "tool",
-                            "content": result,
+                            "content": safe_result,
                             "tool_call_id": tool_id
                         })
                         response = self.openai.chat.completions.create(max_tokens = 2024,
