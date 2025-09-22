@@ -4,7 +4,6 @@ import os
 from typing import List
 from mcp.server.fastmcp import FastMCP
 
-
 PAPER_DIR = "papers"
 
 # Initialize FastMCP server
